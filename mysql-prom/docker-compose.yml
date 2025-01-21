@@ -1,0 +1,114 @@
+
+
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MYSQL_DSN=user:password@tcp(mysql:3306)/dbname
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: dbname
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./drop.sql:/docker-entrypoint-initdb.d/drop.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  sysbench-cleanup:
+    build:
+      context: .
+      dockerfile: sysbench/Dockerfile
+    image: sysbench
+    container_name: sysbench-cleanup
+    command: oltp_read_write --db-driver=mysql --mysql-host=mysql --mysql-user=user --mysql-password=password --mysql-db=dbname  --tables=10 --table-size=1000000 cleanup
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  sysbench-prep:
+    build:
+      context: .
+      dockerfile: sysbench/Dockerfile
+    image: sysbench-prep
+    container_name: sysbench
+    command: oltp_read_write --db-driver=mysql --mysql-host=mysql --mysql-user=user --mysql-password=password --mysql-db=dbname  --tables=10 --table-size=1000000 prepare
+    depends_on:
+      sysbench-cleanup:
+        condition: service_completed_successfully
+    
+  sysbench-run:
+    image: sysbench
+    container_name: sysbench-run
+    command: oltp_read_write --db-driver=mysql --mysql-host=mysql --mysql-user=user --mysql-password=password --mysql-db=dbname  --tables=10 --table-size=1000000 --time=3600 run
+    depends_on:
+      sysbench-prep:
+        condition: service_completed_successfully
+
+  mysqld-exporter:
+    image: bitnami/mysqld-exporter
+    command:
+     - "--collect.info_schema.tablestats"
+     - "--mysqld.username=user:password"
+     - "--mysqld.address=mysql:3306"
+    container_name: mysqld-exporter
+    environment:
+      - DATA_SOURCE_NAME=user:password@tcp(mysql:3306)/
+    ports:
+      - 9104:9104
+    links:
+      - mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - 3000:3000
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - 9090:9090
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+volumes:
+  grafana_storage: {}
+  prometheus_data: {}
