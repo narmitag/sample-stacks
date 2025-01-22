@@ -85,6 +85,8 @@ services:
       - 3000:3000
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=password
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning
     depends_on:
       mysql:
         condition: service_healthy
