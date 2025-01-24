@@ -110,7 +110,25 @@ services:
       mysql:
         condition: service_healthy
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - 9093:9093
+    depends_on:
+      prometheus:
+        condition: service_started
 
+  alertmanager-logger:
+    image: alertmanager-webhook-logger
+    restart: unless-stopped
+    ports:
+      - 6725:6725
+    depends_on:
+      prometheus:
+        condition: service_started 
 volumes:
   grafana_storage: {}
   prometheus_data: {}
