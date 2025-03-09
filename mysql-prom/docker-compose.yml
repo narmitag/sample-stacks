@@ -27,6 +27,7 @@ services:
       - "3306:3306"
     volumes:
       - ./drop.sql:/docker-entrypoint-initdb.d/drop.sql
+      - ./my.cnf:/etc/mysql/conf.d/custom.cnf
     healthcheck:
       test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
       timeout: 20s
@@ -65,12 +66,35 @@ services:
   mysqld-exporter:
     image: bitnami/mysqld-exporter
     command:
+     - "--collect.global_variables" 
+     - "--collect.engine_innodb_status"
+     - "--collect.info_schema.innodb_cmp"
+     - "--collect.info_schema.innodb_metrics"
+     - "--collect.info_schema.innodb_cmpmem"
+     - "--collect.info_schema.tables.databases=*"
+     - "--collect.info_schema.processlist"
+     - "--collect.slave_hosts"
+     - "--collect.info_schema.clientstats"
+     - "--collect.auto_increment.columns"
+     - "--collect.binlog_size"
+     - "--collect.global_status"
+     - "--collect.info_schema.innodb_tablespaces"
+     - "--collect.info_schema.query_response_time"
+     - "--collect.info_schema.tables"
      - "--collect.info_schema.tablestats"
-     - "--mysqld.username=user:password"
+     - "--collect.info_schema.schemastats"
+     - "--collect.info_schema.userstats"
+     - "--collect.mysql.user"
+     - "--collect.perf_schema.eventsstatements"
+     - "--collect.perf_schema.eventswaits"
+     - "--collect.perf_schema.file_events"
+     - "--collect.perf_schema.file_instances"
+     - "--collect.perf_schema.indexiowaits"
+     - "--collect.perf_schema.tableiowaits"
+     - "--collect.perf_schema.tablelocks"
+     - "--mysqld.username=root:rootpassword"
      - "--mysqld.address=mysql:3306"
     container_name: mysqld-exporter
-    environment:
-      - DATA_SOURCE_NAME=user:password@tcp(mysql:3306)/
     ports:
       - 9104:9104
     links:
